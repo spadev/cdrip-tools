@@ -65,12 +65,13 @@ def fix_offset(sources, offset, fmt='wav', verbose=False):
         sox_args += ['pad', '%is' % -offset, '0',
                      'trim', '0', '%is' % total_samples]
 
-    splitaudio_args = [BIN['splitaudio'], '1' if fmt is 'flac' else '0']
+    splitaudio_args = [BIN['splitaudio'], '1' if fmt == 'flac' else '0']
 
     for s in sources:
         splitaudio_args += [str(s['num_samples'])]
 
     if verbose:
+        print('format: %s' % fmt)
         print('%s | %s' % (' '.join(sox_args), ' '.join(splitaudio_args)))
     PROCS.append(Popen(sox_args, stdout=PIPE))
     PROCS.append(Popen(splitaudio_args, stdin=PROCS[-1].stdout, cwd=output_dir))
@@ -86,8 +87,9 @@ def fix_offset(sources, offset, fmt='wav', verbose=False):
 
     TEMPDIRS.remove(output_dir)
     for i, s in enumerate(sources):
-        src = join(output_dir, 'fixed%03i.wav' % i)
-        outpath = join(output_dir, splitext(basename(s['path']))[0]+'.wav')
+        src = join(output_dir, 'fixed%03i.%s' % (i,fmt))
+        outpath = join(output_dir,
+                       '%s.%s' % (splitext(basename(s['path']))[0], fmt))
         os.rename(src, outpath)
 
     return output_dir
