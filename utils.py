@@ -17,8 +17,8 @@ class AccurateRipError(Exception):
     """raised when there's a problem parsing accuraterip data"""
 class InvalidFilesError(Exception):
     """raised when none of the provided files are valid"""
-class SoxError(Exception):
-    """raised when sox has an error"""
+class SubprocessError(Exception):
+    """raised when a subprocess has a nonzero return code"""
 
 STATUSES = ['[+----]',
             '[-+---]',
@@ -131,7 +131,7 @@ def execute(main, processes, tempfiles=[], tempdirs=[]):
         exitcode = main()
     except KilledError:
         exitcode = 1
-    except (DependencyError, AccurateRipError, SoxError,
+    except (DependencyError, AccurateRipError, SubprocessError,
             NotFromCDError, InvalidFilesError) as e:
         sys.stderr.write('%s\n' % e)
         exitcode = 2

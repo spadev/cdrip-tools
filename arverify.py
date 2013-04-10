@@ -63,9 +63,10 @@ def scan_files(sources):
     out, err = p.communicate()
     tmp.seek(0)
     out = tmp.read().decode()
-    if PROCS[-1].returncode != 0:
-        raise utils.SoxError('sox had an error (returned %i)' %
-                             PROCS[-1].returncode)
+    for pr in PROCS:
+        if pr.returncode:
+            raise utils.SubprocessError('sox had an error (returned %i)' %
+                                        pr.returncode)
 
     for s in sources:
         s['results'] = {}
@@ -286,7 +287,7 @@ def print_summary(sources, verbose=False):
             ns = s['num_submissions']
             nsmsg = totalfmt % (ns, 's' if ns != 1 else '')
             lines.append(badfmt % nsmsg)
-            bad.append(num_submissions)
+            bad.append(ns)
 
         summary.append('  \n'.join(lines))
 

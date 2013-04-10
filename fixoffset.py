@@ -73,7 +73,8 @@ def fix_offset(sources, offset, fmt='wav', verbose=False):
     if verbose:
         print('format: %s' % fmt)
         print('%s | %s' % (' '.join(sox_args), ' '.join(splitaudio_args)))
-    PROCS.append(Popen(sox_args, stdout=PIPE))
+    devnull = open(os.devnull, 'w')
+    PROCS.append(Popen(sox_args, stdout=PIPE, stderr=devnull))
     PROCS.append(Popen(splitaudio_args, stdin=PROCS[-1].stdout, cwd=output_dir))
 
     p = PROCS[-1]
@@ -81,9 +82,12 @@ def fix_offset(sources, offset, fmt='wav', verbose=False):
         utils.show_status('Fixing offset (%i samples)', offset)
 
     out, err = p.communicate()
+    devnull.close()
     print('', file=sys.stderr, end='\n')
-    if p.returncode != 0:
-        raise utils.SoxError('sox had an error (returned %i)' % p.returncode)
+    for pr in PROCS:
+        if pr.returncode:
+            raise utils.SubprocessError('sox had an error (returned %i)' %
+                                        pr.returncode)
 
     TEMPDIRS.remove(output_dir)
     for i, s in enumerate(sources):
