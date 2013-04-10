@@ -16,9 +16,9 @@ except ImportError:
     from urllib.request import urlopen
 
 BIN = {'metaflac': None,
-       'ckcdda': None,
        'ffprobe': 'avprobe',
        'sox': None,
+       'ckcdda': None,
        }
 
 PROGNAME = 'arverify'
@@ -289,28 +289,29 @@ def print_summary(sources, verbose=False):
             lines.append(badfmt % nsmsg)
             bad.append(ns)
 
-        summary.append('  \n'.join(lines))
+        summary.append('\n    '.join(lines))
 
     print('\n\n'.join(summary))
     print('\n'+'='*80)
 
     total = len(sources)
+    mfmt = '%i/%i' if total < 10 else '%2i/%2i'
     for offset in sorted(good.keys(), key=abs):
         entry = good[offset]
         n = len(entry)
         c, ns = max(entry, key=lambda x: sum(x[0]))
-        m = '%2i/%2i %s%s (confidence %i)' % \
+        m = (mfmt+' %s%s (confidence %i)') % \
             (n, total, goodmsg, wofmt % offset if offset else '', sum(c))
         print(m)
     for offset in sorted(maybe.keys()):
         entry = maybe[offset]
         n = len(entry)
         c, ns = max(entry, key=lambda x: sum(x[0]))
-        m = '%2i/%2i %s%s (confidence %i)' % \
+        m = (mfmt+' %s%s (confidence %i)') % \
             (n, total, maybemsg, wofmt % offset if offset else '', sum(c))
         print(m)
     if bad:
-        print('%2i/%2i %s' % (len(bad), total, badmsg))
+        print((mfmt+' %s') % (len(bad), total, badmsg))
     if np:
         print('%2i/%2i %s' % (len(np), total, npmsg))
 

@@ -6,7 +6,7 @@ import utils
 
 from subprocess import Popen,  PIPE
 from argparse import ArgumentParser
-from os.path import isfile, basename, dirname, exists, splitext, join, abspath
+from os.path import isfile, basename, dirname, exists, splitext, join
 
 BIN = {'metaflac': None,
        'ffprobe': 'avprobe',
@@ -41,8 +41,8 @@ def fix_offset(sources, offset, fmt='wav', verbose=False):
     i = 0
     while not output_dir:
         a = '_%i' % i if i > 0 else ''
-        output_dir = abspath(join(dirname(sources[0]['path']),
-                                  'fixedoffset_%i%s' % (offset, a)))
+        output_dir = join(dirname(sources[0]['path']),
+                          'fixedoffset_%i%s' % (offset, a))
         if exists(output_dir):
             output_dir = None
         i += 1
