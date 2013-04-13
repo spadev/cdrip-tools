@@ -19,6 +19,8 @@ class InvalidFilesError(Exception):
     """raised when none of the provided files are valid"""
 class SubprocessError(Exception):
     """raised when a subprocess has a nonzero return code"""
+class NetworkError(Exception):
+    """raised when problem connecting to accuraterip database"""
 
 STATUSES = ['[+----]',
             '[-+---]',
@@ -132,7 +134,7 @@ def execute(main, processes, tempfiles=[], tempdirs=[]):
     except KilledError:
         exitcode = 1
     except (DependencyError, AccurateRipError, SubprocessError,
-            NotFromCDError, InvalidFilesError) as e:
+            NotFromCDError, InvalidFilesError, NetworkError) as e:
         sys.stderr.write('%s\n' % e)
         exitcode = 2
     finally:

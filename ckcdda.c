@@ -122,21 +122,51 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    int track_count = argc-1;
-    printf("track count: %i\n", track_count);
+    if (argc < 2) {
+        fprintf(stderr, "Need at least two arguments\n");
+        exit(EXIT_FAILURE);
+    }
 
-    void *to_alloc[6] = {NULL};
-    int *length = alloc_int(track_count+1, to_alloc, 0);
+    int num_pairs_per_track = atoi(argv[1]); /* number of (crc, crc450) pairs per
+                                                track */
+    int track_count = (argc-2) / (num_pairs_per_track*2 + 1);
+    if ( (argc-2) % (num_pairs_per_track*2 + 1) ) {
+        fprintf(stderr, "Invalid number of arguments\n");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("track count: %i\n", track_count);
+    printf("entries per track: %i\n", num_pairs_per_track);
+
+    void     *to_alloc[8] = {NULL};
+    int      *length = alloc_int(track_count+1, to_alloc, 0);
     uint32_t *sum = alloc_uint32(track_count, to_alloc, 1);
     uint32_t *crc2 = alloc_uint32(track_count, to_alloc, 2);
     uint32_t *arcf = alloc_uint32(track_count*ARCFS_PER_TRACK, to_alloc, 3);
     uint32_t *arcf450 = alloc_uint32(track_count*ARCFS_PER_TRACK, to_alloc, 4);
     uint32_t *frame = alloc_uint32(SAMPLES_PER_FRAME, to_alloc, 5);
+    uint32_t *dbcrc = alloc_uint32(track_count*num_pairs_per_track,
+                                   to_alloc, 6);
+    uint32_t *dbcrc450 = alloc_uint32(track_count*num_pairs_per_track,
+                                      to_alloc, 7);
 
+    /* args layout:
+       ./ckcdda num_pairs_per_track length(0) crc(0,0) crc(0,1)...
+       crc450(0,0) crc450(0,1)... length(1) crc(1,0) crc(1,1)...
+       crc450(1,0) crc450(1,1)... length(2)... */
     int total_length = 0;
-    for (int i = 0; i < track_count; i++) {
-        length[i] = atoi(argv[i+1])*SAMPLES_PER_FRAME;
-        total_length += length[i];
+    for (int trackno = 0; trackno < track_count; trackno++) {
+        int p = 2+trackno*(2*num_pairs_per_track+1);
+        length[trackno] = atoi(argv[p])*SAMPLES_PER_FRAME;
+
+        /* Read in dbcrc and dbcrc450 */
+        for (int j = 0, k = num_pairs_per_track; j < num_pairs_per_track;
+             j++, k++) {
+            dbcrc[trackno*num_pairs_per_track + j] = atoi(argv[p+j+1]);
+            dbcrc450[trackno*num_pairs_per_track + j] = atoi(argv[p+k+1]);
+        }
+
+        total_length += length[trackno];
     }
     printf("total_length: %i\n", total_length);
 
@@ -214,17 +244,25 @@ main(int argc, char *argv[])
         }
     }
 
-    /* Print ARCFs for all offsets */
-    for (int i = 0; i < track_count; i++) {
+    /* Print ARCFs for offset 0 and matching offsets */
+    for (int trackno = 0; trackno < track_count; trackno++) {
         for (int o = 0; o < ARCFS_PER_TRACK; o++) {
-            printf("%03u,%i: %08X %08X", i, o-CHECK_RADIUS,
-                   arcf[ARCF_IDX(i, o)],
-                   arcf450[ARCF_IDX(i, o)]);
-            if (o == CHECK_RADIUS)
-                printf(" %08X", crc2[i]);
-            printf("\n");
+            int offset = o-CHECK_RADIUS;
+            uint32_t crc = arcf[ARCF_IDX(trackno, o)];
+            uint32_t crc450 = arcf450[ARCF_IDX(trackno, o)];
+            if (offset == 0) {
+                printf("%03u,%i: %08X %08X %08X\n", trackno,
+                       o-CHECK_RADIUS, crc, crc450, crc2[trackno]);
+            } else {
+                for (int j = 0; j < num_pairs_per_track; j++) {
+                    if (crc == dbcrc[trackno*num_pairs_per_track+j] ||
+                        crc450 == dbcrc450[trackno*num_pairs_per_track+j]) {
+                        printf("%03u,%i: %08X %08X\n", trackno, o-CHECK_RADIUS,
+                               crc, crc450);
+                    }
+                }
+            }
         }
     }
-
     return EXIT_SUCCESS;
 }

@@ -2,13 +2,15 @@
 from __future__ import print_function
 import os, re, sys, struct
 
-import utils
-
 from os.path import isfile, basename, dirname, join
 from subprocess import Popen, PIPE
 from argparse import ArgumentParser
 from io import BytesIO
 from tempfile import TemporaryFile
+
+import utils
+from utils import SubprocessError, NotFromCDError,\
+    AccurateRipError, InvalidFilesError, NetworkError
 
 try:
     from urllib import urlopen
@@ -50,7 +52,18 @@ def process_arguments():
 def scan_files(sources):
     total = len(sources)
     sox_args = ['sox']+[s['path'] for s in sources]+['-t', 'raw', '-']
-    ckcdda_args = [BIN['ckcdda']] + [str(s['num_sectors']) for s in sources]
+    entries_per_track = max([len(s['ar']) for s in sources])
+    ckcdda_args = [BIN['ckcdda'], entries_per_track]
+    for s in sources:
+        ckcdda_args.append(str(s['num_sectors']))
+        crcs = [r['crc'] for r in s['ar']]
+        crc450s = [r['crc450'] for r in s['ar']]
+        crcs += [0]*(entries_per_track-len(crcs))
+        crc450s += [0]*(entries_per_track-len(crc450s))
+        ckcdda_args += crcs
+        ckcdda_args += crc450s
+
+    ckcdda_args = map(str, ckcdda_args)
 
     tmp = TemporaryFile()
     PROCS.append(Popen(sox_args, stdout=PIPE))
@@ -65,8 +78,8 @@ def scan_files(sources):
     out = tmp.read().decode()
     for pr in PROCS:
         if pr.returncode:
-            raise utils.SubprocessError('sox had an error (returned %i)' %
-                                        pr.returncode)
+            raise SubprocessError('sox had an error (returned %i)' %
+                                  pr.returncode)
 
     for s in sources:
         s['results'] = {}
@@ -74,9 +87,6 @@ def scan_files(sources):
 
     lines = out.split('\n')
     num_lines = len(lines)
-    print('\r'+' '*79, file=sys.stderr, end='')
-    msg = '\rAnalyzing results [%3i%%]'
-    last_percentage = 0
 
     results1 = []
     results2 = []
@@ -84,10 +94,6 @@ def scan_files(sources):
     for i, line in enumerate(lines):
         if not re.match('^\d', line):
             continue
-        percentage = (float(i)/num_lines)*100
-        if percentage != last_percentage:
-            print((msg % percentage), file=sys.stderr, end='')
-            last_percentage = percentage
 
         index, data = line.split(': ')
         track_index, offset = [int(x) for x in index.split(',')]
@@ -115,7 +121,6 @@ def scan_files(sources):
                 if offset not in s['cresults']:
                     s['cresults'][offset] = []
                 s['cresults'][offset].append(ar['confidence'])
-    print(msg % 100, file=sys.stderr, end='\n')
 
 def get_disc_ids(sources, additional_sectors=0, data_track_len=0,
                  verbose=False):
@@ -146,7 +151,7 @@ def get_disc_ids(sources, additional_sectors=0, data_track_len=0,
         if s['num_samples'] % 588 != 0:
             msg = "%s not from CD (%i samples)\n" % (s['path'],
                                                      s['num_samples'])
-            raise utils.NotFromCDError(msg)
+            raise NotFromCDError(msg)
         cur_sectors += s['num_sectors']
         track_offsets.append(cur_sectors)
 
@@ -174,6 +179,9 @@ def get_disc_ids(sources, additional_sectors=0, data_track_len=0,
     return (cddb, id1, id2)
 
 def get_ardata(cddb, id1, id2, sources, verbose=False):
+    with open('test/test.bin', 'rb') as tf:
+        data = tf.read()
+    return process_binary_ardata(BytesIO(bytes(data)), cddb, id1, id2, sources)     
     url = ("http://www.accuraterip.com/accuraterip/"+
            "%.1x/%.1x/%.1x/dBAR-%.3d-%.8x-%.8x-%.8x.bin")
     url = url % (id1 & 0xF, id1>>4 & 0xF, id1>>8 & 0xF,
@@ -181,7 +189,10 @@ def get_ardata(cddb, id1, id2, sources, verbose=False):
     if verbose:
         print(url)
 
-    data = urlopen(url).read()
+    try:
+        data = urlopen(url).read()
+    except IOError:
+        raise NetworkError("Could not connect to accuraterip database")
     if b'html' in data and b'404' in data:
         data = b''
 
@@ -212,7 +223,7 @@ def process_binary_ardata(fdata, cddb, id1, id2, sources):
         ar_cddb = int(struct.unpack('I', chunk_cddb)[0])
         if ar_trackcount != trackcount or \
                 ar_id1 != id1 or ar_id2 != id2 or ar_cddb != cddb:
-            raise utils.AccurateRipError("Track count or Disc IDs don't match")
+            raise AccurateRipError("Track count or Disc IDs don't match")
         for s in sources:
             chunk_confidence = fdata.read(1)
             chunk_crc = fdata.read(4)
@@ -323,7 +334,7 @@ def main():
     sources = [dict(path=p) for p in ns.paths if isfile(p)]
     total = len(sources)
     if total == 0:
-        raise utils.InvalidFilesError('Please provide valid input files')
+        raise InvalidFilesError('Please provide valid input files')
 
     cddb, id1, id2 = get_disc_ids(sources, ns.additional_sectors,
                                   ns.data_track_len, ns.verbose)
