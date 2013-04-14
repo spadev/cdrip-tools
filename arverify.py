@@ -321,7 +321,7 @@ def print_summary(sources, verbose=False):
     if bad:
         print((mfmt+' %s') % (len(bad), total, badmsg))
     if np:
-        print('%2i/%2i %s' % (len(np), total, npmsg))
+        print((mfmt+' %s') % (len(np), total, npmsg))
 
     return len(bad)
 
