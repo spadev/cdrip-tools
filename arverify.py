@@ -179,9 +179,6 @@ def get_disc_ids(sources, additional_sectors=0, data_track_len=0,
     return (cddb, id1, id2)
 
 def get_ardata(cddb, id1, id2, sources, verbose=False):
-    with open('test/test.bin', 'rb') as tf:
-        data = tf.read()
-    return process_binary_ardata(BytesIO(bytes(data)), cddb, id1, id2, sources)     
     url = ("http://www.accuraterip.com/accuraterip/"+
            "%.1x/%.1x/%.1x/dBAR-%.3d-%.8x-%.8x-%.8x.bin")
     url = url % (id1 & 0xF, id1>>4 & 0xF, id1>>8 & 0xF,
