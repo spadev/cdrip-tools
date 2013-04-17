@@ -5,6 +5,7 @@ from os.path import dirname
 from subprocess import Popen, PIPE
 from fnmatch import fnmatch
 from shutil import rmtree
+from argparse import ArgumentTypeError
 
 class DependencyError(Exception):
     """raised when dependency not found"""
@@ -15,8 +16,6 @@ class NotFromCDError(Exception):
     not divisible by 588"""
 class AccurateRipError(Exception):
     """raised when there's a problem parsing accuraterip data"""
-class InvalidFilesError(Exception):
-    """raised when none of the provided files are valid"""
 class SubprocessError(Exception):
     """raised when a subprocess has a nonzero return code"""
 class NetworkError(Exception):
@@ -71,6 +70,12 @@ def which(name, flags=os.X_OK, additional_paths=[]):
                 result.append(pext)
     return result
 
+def isfile(value):
+    if not os.path.isfile(value):
+        raise ArgumentTypeError('%s is not a file' % value)
+
+    return value
+
 def check_dependencies(BIN, REQUIRED):
     for dep in BIN:
         value = which(dep, additional_paths=[dirname(sys.argv[0])])
@@ -98,6 +103,7 @@ def show_status(msg, *args):
     msg = msg % args
     msg = '\r'+msg+' %s   ' % status
     sys.stderr.write(msg)
+    sys.stderr.flush()
     time.sleep(0.25)
     STATUS_INDEX += 1
 
@@ -134,7 +140,7 @@ def execute(main, processes, tempfiles=[], tempdirs=[]):
     except KilledError:
         exitcode = 1
     except (DependencyError, AccurateRipError, SubprocessError,
-            NotFromCDError, InvalidFilesError, NetworkError) as e:
+            NotFromCDError, NetworkError) as e:
         sys.stderr.write('%s\n' % e)
         exitcode = 2
     finally:

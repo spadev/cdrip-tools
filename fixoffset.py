@@ -6,7 +6,7 @@ import utils
 
 from subprocess import Popen,  PIPE
 from argparse import ArgumentParser
-from os.path import isfile, basename, dirname, exists, splitext, join
+from os.path import basename, dirname, exists, splitext, join
 
 BIN = {'metaflac': None,
        'ffprobe': 'avprobe',
@@ -26,6 +26,7 @@ def process_arguments():
                        prog=PROGNAME)
     parser.add_argument('offset', help='offset to correct', type=int)
     parser.add_argument('paths', metavar='file', nargs='+',
+                        type=utils.isfile,
                         help='lossless audio file')
     parser.add_argument('-f', '--format',
                         default='wav',
@@ -105,10 +106,7 @@ def print_summary(sources, output_dir):
 def main():
     utils.check_dependencies(BIN, REQUIRED)
     ns = process_arguments()
-    sources = [dict(path=p) for p in ns.paths if isfile(p)]
-    total = len(sources)
-    if total == 0:
-        raise utils.InvalidFilesError('Please provide valid input files')
+    sources = [dict(path=p) for p in ns.paths]
 
     for s in sources:
         s['num_samples'] = utils.get_num_samples(BIN, s['path'])

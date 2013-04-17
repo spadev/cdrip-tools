@@ -2,7 +2,7 @@
 from __future__ import print_function
 import os, re, sys, struct
 
-from os.path import isfile, basename, dirname, join
+from os.path import basename, dirname, join
 from subprocess import Popen, PIPE
 from argparse import ArgumentParser
 from io import BytesIO
@@ -10,7 +10,7 @@ from tempfile import TemporaryFile
 
 import utils
 from utils import SubprocessError, NotFromCDError,\
-    AccurateRipError, InvalidFilesError, NetworkError
+    AccurateRipError, NetworkError
 
 try:
     from urllib import urlopen
@@ -24,7 +24,7 @@ BIN = {'metaflac': None,
        }
 
 PROGNAME = 'arverify'
-VERSION = '0.1'
+VERSION = '0.1.1'
 REQUIRED = ['ffprope', 'sox', 'ckcdda']
 PROCS = []
 
@@ -35,6 +35,7 @@ def process_arguments():
         ArgumentParser(description='Verify lossless files with accuraterip.',
                        prog=PROGNAME)
     parser.add_argument('paths', metavar='file', nargs='+',
+                        type=utils.isfile,
                         help='lossless audio file')
     parser.add_argument("-a", "--additional-sectors",
                         dest="additional_sectors", type=int,
@@ -328,10 +329,7 @@ def print_summary(sources, verbose=False):
 def main():
     utils.check_dependencies(BIN, REQUIRED)
     ns = process_arguments()
-    sources = [dict(path=p) for p in ns.paths if isfile(p)]
-    total = len(sources)
-    if total == 0:
-        raise InvalidFilesError('Please provide valid input files')
+    sources = [dict(path=p) for p in ns.paths]
 
     cddb, id1, id2 = get_disc_ids(sources, ns.additional_sectors,
                                   ns.data_track_len, ns.verbose)
