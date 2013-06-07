@@ -14,7 +14,7 @@ class KilledError(Exception):
 class NotFromCDError(Exception):
     """raised when encountering track that has number of samples
     not divisible by 588"""
-class AccurateRipError(Exception):
+class AccurateripError(Exception):
     """raised when there's a problem parsing accuraterip data"""
 class SubprocessError(Exception):
     """raised when a subprocess has a nonzero return code"""
@@ -107,6 +107,9 @@ def show_status(msg, *args):
     time.sleep(0.25)
     STATUS_INDEX += 1
 
+def finish_status(msg=''):
+    sys.stderr.write('\n')
+
 def get_num_samples(BIN, path):
     devnull = open(os.devnull, 'w')
     if fnmatch(path.lower(), '*.flac') and BIN['metaflac']:
@@ -139,8 +142,9 @@ def execute(main, processes, tempfiles=[], tempdirs=[]):
         exitcode = main()
     except KilledError:
         exitcode = 1
-    except (DependencyError, AccurateRipError, SubprocessError,
+    except (DependencyError, AccurateripError, SubprocessError,
             NotFromCDError, NetworkError) as e:
+        print(e, file=sys.stderr)
         sys.stderr.write('%s\n' % e)
         exitcode = 2
     finally:

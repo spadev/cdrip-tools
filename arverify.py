@@ -10,7 +10,7 @@ from tempfile import TemporaryFile
 
 import utils
 from utils import SubprocessError, NotFromCDError,\
-    AccurateRipError, NetworkError
+    AccurateripError, NetworkError
 
 try:
     from urllib import urlopen
@@ -18,17 +18,48 @@ except ImportError:
     from urllib.request import urlopen
 
 BIN = {'metaflac': None,
-       'ffprobe': 'avprobe',
-       'sox': None,
-       'ckcdda': None,
+       'ffprobe' : 'avprobe',
+       'sox'     : None,
+       'ckcdda'  : None,
        }
 
 PROGNAME = 'arverify'
-VERSION = '0.1.1'
+VERSION = '0.2'
 REQUIRED = ['ffprope', 'sox', 'ckcdda']
 PROCS = []
 
 MIN_OFFSET = -2939
+
+class AccurateripEntry(object):
+    """Represents one entry in Accuraterip database. One track
+    may have several entries in the database
+
+    TODO: See if there's a way to determine if crc is v1 or v2 beforehand
+    """
+    def __init__(self, crc, crc450, confidence):
+        self.crc = crc
+        self.crc450 = crc450
+        self.confidence = confidence
+
+class Track(object):
+    """One track and its associated metadata/information"""
+    def __init__(self, path):
+        self.path = path
+        self.num_samples = utils.get_num_samples(BIN, path)
+        self.num_sectors = int(self.num_samples/588)
+        if self.num_samples % 588 != 0:
+            msg = "%s not from CD (%i samples)\n" % \
+                (path, self.num_samples)
+            raise NotFromCDError(msg)
+        self.ar_entries = []
+
+        # key is offset, value is list of confidence levels
+        self.exact_matches = {}
+        self.possible_matches = {}
+
+    @property
+    def num_submissions(self):
+        return sum([e.confidence for e in self.ar_entries])
 
 def process_arguments():
     parser = \
@@ -50,15 +81,15 @@ def process_arguments():
 
     return parser.parse_args()
 
-def scan_files(sources):
-    total = len(sources)
-    sox_args = ['sox']+[s['path'] for s in sources]+['-t', 'raw', '-']
-    entries_per_track = max([len(s['ar']) for s in sources])
+def scan_files(tracks):
+    sox_args = ['sox']+[t.path for t in tracks]+['-t', 'raw', '-']
+    entries_per_track = max([len(t.ar_entries) for t in tracks])
     ckcdda_args = [BIN['ckcdda'], entries_per_track]
-    for s in sources:
-        ckcdda_args.append(str(s['num_sectors']))
-        crcs = [r['crc'] for r in s['ar']]
-        crc450s = [r['crc450'] for r in s['ar']]
+
+    for track in tracks:
+        ckcdda_args.append(str(track.num_sectors))
+        crcs = [e.crc for e in track.ar_entries]
+        crc450s = [e.crc450 for e in track.ar_entries]
         crcs += [0]*(entries_per_track-len(crcs))
         crc450s += [0]*(entries_per_track-len(crc450s))
         ckcdda_args += crcs
@@ -72,7 +103,8 @@ def scan_files(sources):
 
     p = PROCS[-1]
     while p.poll() is None:
-        utils.show_status('Calculating checksums for %i files', total)
+        utils.show_status('Calculating checksums for %i files', len(tracks))
+    utils.finish_status()
 
     out, err = p.communicate()
     tmp.seek(0)
@@ -81,10 +113,6 @@ def scan_files(sources):
         if pr.returncode:
             raise SubprocessError('sox had an error (returned %i)' %
                                   pr.returncode)
-
-    for s in sources:
-        s['results'] = {}
-        s['cresults'] = {}
 
     lines = out.split('\n')
     num_lines = len(lines)
@@ -106,24 +134,24 @@ def scan_files(sources):
         else:
             crc2 = None
 
-        s = sources[track_index]
+        track = tracks[track_index]
 
         if offset == 0:
-            s['crc1'] = crc1
-            s['crc2'] = crc2
-            s['crc450'] = crc450
+            track.crc1 = crc1
+            track.crc2 = crc2
+            track.crc450 = crc450
 
-        for ar in s['ar']:
-            if ar['crc'] in (crc1, crc2):
-                if offset not in s['results']:
-                    s['results'][offset] = []
-                s['results'][offset].append(ar['confidence'])
-            elif ar['crc450'] == crc450 and offset != 0:
-                if offset not in s['cresults']:
-                    s['cresults'][offset] = []
-                s['cresults'][offset].append(ar['confidence'])
+        for entry in track.ar_entries:
+            if entry.crc in (crc1, crc2):
+                if offset not in track.exact_matches:
+                    track.exact_matches[offset] = []
+                track.exact_matches[offset].append(entry.confidence)
+            elif entry.crc450 == crc450 and offset != 0:
+                if offset not in track.possible_matches:
+                    track.possible_matches[offset] = []
+                track.possible_matches[offset].append(entry.confidence)
 
-def get_disc_ids(sources, additional_sectors=0, data_track_len=0,
+def get_disc_ids(tracks, additional_sectors=0, data_track_len=0,
                  verbose=False):
     # first get track offsets
     try:
@@ -146,14 +174,8 @@ def get_disc_ids(sources, additional_sectors=0, data_track_len=0,
 
     track_offsets = [additional_sectors]
     cur_sectors = additional_sectors
-    for s in sources:
-        s['num_samples'] = utils.get_num_samples(BIN, s['path'])
-        s['num_sectors'] = int(s['num_samples'] / 588)
-        if s['num_samples'] % 588 != 0:
-            msg = "%s not from CD (%i samples)\n" % (s['path'],
-                                                     s['num_samples'])
-            raise NotFromCDError(msg)
-        cur_sectors += s['num_sectors']
+    for track in tracks:
+        cur_sectors += track.num_sectors
         track_offsets.append(cur_sectors)
 
     # now get disc ids
@@ -164,8 +186,6 @@ def get_disc_ids(sources, additional_sectors=0, data_track_len=0,
     if data_track_len:
         id1 += data_track_len + 11400
         id2 += (data_track_len + 11400)*len(track_offsets)
-
-    if data_track_len:
         track_offsets[-1] += 11400
         track_offsets.append(data_track_len + track_offsets[-1])
 
@@ -177,13 +197,14 @@ def get_disc_ids(sources, additional_sectors=0, data_track_len=0,
     id1 &= 0xFFFFFFFF;
     id2 &= 0xFFFFFFFF;
     cddb &= 0xFFFFFFFF;
+
     return (cddb, id1, id2)
 
-def get_ardata(cddb, id1, id2, sources, verbose=False):
+def get_ar_entries(cddb, id1, id2, tracks, verbose=False):
     url = ("http://www.accuraterip.com/accuraterip/"+
            "%.1x/%.1x/%.1x/dBAR-%.3d-%.8x-%.8x-%.8x.bin")
     url = url % (id1 & 0xF, id1>>4 & 0xF, id1>>8 & 0xF,
-                 len(sources), id1, id2, cddb)
+                 len(tracks), id1, id2, cddb)
     if verbose:
         print(url)
 
@@ -194,15 +215,13 @@ def get_ardata(cddb, id1, id2, sources, verbose=False):
     if b'html' in data and b'404' in data:
         data = b''
 
-    return process_binary_ardata(BytesIO(bytes(data)), cddb, id1, id2, sources)
+    return process_binary_ar_entries(BytesIO(bytes(data)), cddb, id1, id2, tracks)
 
-def process_binary_ardata(fdata, cddb, id1, id2, sources):
-    trackcount = len(sources)
-
-    for s in sources:
-        s['ar'] = []
+def process_binary_ar_entries(fdata, cddb, id1, id2, tracks):
     if not fdata:
         return
+
+    trackcount = len(tracks)
 
     while True:
         chunk_trackcount = fdata.read(1)
@@ -221,8 +240,8 @@ def process_binary_ardata(fdata, cddb, id1, id2, sources):
         ar_cddb = int(struct.unpack('I', chunk_cddb)[0])
         if ar_trackcount != trackcount or \
                 ar_id1 != id1 or ar_id2 != id2 or ar_cddb != cddb:
-            raise AccurateRipError("Track count or Disc IDs don't match")
-        for s in sources:
+            raise AccurateripError("Track count or Disc IDs don't match")
+        for track in tracks:
             chunk_confidence = fdata.read(1)
             chunk_crc = fdata.read(4)
             chunk_crc450 = fdata.read(4) # skip 4 bytes
@@ -231,9 +250,9 @@ def process_binary_ardata(fdata, cddb, id1, id2, sources):
             confidence = int(struct.unpack('B', chunk_confidence)[0])
             crc = int(struct.unpack('I', chunk_crc)[0])
             crc450 = int(struct.unpack('I', chunk_crc450)[0])
-            s['ar'].append(dict(crc=crc, confidence=confidence, crc450=crc450))
+            track.ar_entries.append(AccurateripEntry(crc, crc450, confidence))
 
-def print_summary(sources, verbose=False):
+def print_summary(tracks, verbose=False):
     summary = []
 
     good = {}      # Matching main CRC (with or without offset)
@@ -254,10 +273,10 @@ def print_summary(sources, verbose=False):
     dbentryfmt   = '%-20s: CRC: %08X, Confidence: %3i, CRC450: %08X'
     totalfmt     = 'total %i submission%s'
 
-    def generate_messages(s, results, msg, l):
+    def generate_messages(track, matches, msg, l):
         msgs = []
-        for offset, confidence in iter(results.items()):
-            ns = s['num_submissions']
+        for offset, confidence in iter(matches.items()):
+            ns = track.num_submissions
             m = '%s%s (confidence %s%s)' % \
                 (msg, wofmt % offset if offset else '',
                  '+'.join(str(x) for x in confidence),
@@ -269,31 +288,30 @@ def print_summary(sources, verbose=False):
 
         return msgs
 
-    for s in sources:
+    for track in tracks:
         lines = []
-        lines.append(s['path'])
-        lines.append(fmt % (calc1msg, s['crc1']))
-        lines.append(fmt % (calc2msg, s['crc2']))
-        s['num_submissions'] = sum([e['confidence'] for e in s['ar']])
+        lines.append(track.path)
+        lines.append(fmt % (calc1msg, track.crc1))
+        lines.append(fmt % (calc2msg, track.crc2))
 
         if verbose:
-            lines.append(fmt % (calc450msg, s['crc450']))
-            for e in s['ar']:
-                lines.append(dbentryfmt % ('Database entry', e['crc'],
-                                           e['confidence'], e['crc450']))
+            lines.append(fmt % (calc450msg, track.crc450))
+            for entry in track.ar_entries:
+                lines.append(dbentryfmt % ('Database entry', entry.crc,
+                                           entry.confidence, entry.crc450))
 
         lines.append('-'*len(lines[-1]))
 
-        g = generate_messages(s, s['results'], goodmsg, good)
-        p = generate_messages(s, s['cresults'], maybemsg, maybe)
+        g = generate_messages(track, track.exact_matches, goodmsg, good)
+        p = generate_messages(track, track.possible_matches, maybemsg, maybe)
         lines += g
         lines += p
 
-        if s['num_submissions'] == 0:
+        ns = track.num_submissions
+        if ns == 0:
             lines.append(npmsg)
             np.append(0)
         elif not g and not p:
-            ns = s['num_submissions']
             nsmsg = totalfmt % (ns, 's' if ns != 1 else '')
             lines.append(badfmt % nsmsg)
             bad.append(ns)
@@ -303,7 +321,7 @@ def print_summary(sources, verbose=False):
     print('\n\n'.join(summary))
     print('\n'+'='*80)
 
-    total = len(sources)
+    total = len(tracks)
     mfmt = '%i/%i' if total < 10 else '%2i/%2i'
     for offset in sorted(good.keys(), key=abs):
         entry = good[offset]
@@ -329,14 +347,14 @@ def print_summary(sources, verbose=False):
 def main():
     utils.check_dependencies(BIN, REQUIRED)
     ns = process_arguments()
-    sources = [dict(path=p) for p in ns.paths]
+    tracks = [Track(path) for path in ns.paths]
 
-    cddb, id1, id2 = get_disc_ids(sources, ns.additional_sectors,
+    cddb, id1, id2 = get_disc_ids(tracks, ns.additional_sectors,
                                   ns.data_track_len, ns.verbose)
     print('Disc ID: %08x-%08x-%08x' % (id1, id2, cddb))
-    get_ardata(cddb, id1, id2, sources, ns.verbose)
-    scan_files(sources)
-    return print_summary(sources, ns.verbose)
+    get_ar_entries(cddb, id1, id2, tracks, ns.verbose)
+    scan_files(tracks)
+    return print_summary(tracks, ns.verbose)
 
 if __name__ == '__main__':
     utils.execute(main, PROCS)
