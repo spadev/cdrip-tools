@@ -36,13 +36,28 @@ class AccurateripEntry(object):
 
     TODO: See if there's a way to determine if crc is v1 or v2 beforehand
     """
+    _fmt = '%-20s: CRC: %08X, Confidence: %3i, CRC450: %08X'
+
     def __init__(self, crc, crc450, confidence):
         self.crc = crc
         self.crc450 = crc450
         self.confidence = confidence
 
+    def __str__(self):
+        return self._fmt % ('Database entry', self.crc, self.confidence,
+                            self.crc450)
+
 class Track(object):
     """One track and its associated metadata/information"""
+    exact_match_msg = 'Accurately ripped'
+    possible_match_msg = 'Possibly accurately ripped'
+    not_present_msg = 'Not present in database'
+
+    not_accurate_fmt = '***Definitely not accurately ripped (%s)***'
+    with_offset_fmt = ' with offset %i'
+    _fmt = '%-20s: %08X'
+    total_fmt = 'total %i submissions'
+
     def __init__(self, path):
         self.path = path
         self.num_samples = utils.get_num_samples(BIN, path)
@@ -60,6 +75,55 @@ class Track(object):
     @property
     def num_submissions(self):
         return sum([e.confidence for e in self.ar_entries])
+
+    def __matches_summary(self, matches, msg, album_matches):
+        summary = []
+        for offset, confidence in iter(matches.items()):
+            ns = self.num_submissions
+            m = '%s%s (confidence %s%s)' % \
+                (msg, self.with_offset_fmt % offset if offset else '',
+                 '+'.join(str(x) for x in confidence),
+                 '/%i' % ns if ns != confidence else '')
+            summary.append(m)
+            if offset not in album_matches:
+                album_matches[offset] = []
+            album_matches[offset].append( (confidence, ns) )
+
+        return summary
+
+    def calcsummary(self, verbose):
+        pairs = [('Calculated CRCv1', self.crc1),
+                 ('Calculated CRCv2', self.crc2),
+                 ('Calculated CRC450', self.crc450)]
+        if not verbose:
+            pairs = pairs[:-1]
+            for entry in track.ar_entries:
+                lines.append(str(entry))
+        return [self._fmt % (x, y) for x, y in pairs]
+
+    def dbsummary(self):
+        return [str(e) for e in self.ar_entries]
+
+    def ripsummary(self, album_exact_matches, album_possible_matches,
+                   album_not_present, album_not_accurate):
+        good = self.__matches_summary(self.exact_matches,
+                                      self.exact_match_msg,
+                                      album_exact_matches)
+        possible = self.__matches_summary(self.possible_matches,
+                                          self.possible_match_msg,
+                                          album_possible_matches)
+        summary = good + possible
+
+        ns = self.num_submissions
+        if ns == 0:
+            summary.append(self.not_present_msg)
+            album_not_present.append(0)
+        elif not good and not possible:
+            msg = self.total_fmt % (ns, 's' if ns != 1 else '')
+            summary.append(self.not_accurate_fmt % msg)
+            album_not_accurate.append(ns)
+
+        return summary
 
 def process_arguments():
     parser = \
@@ -260,62 +324,13 @@ def print_summary(tracks, verbose=False):
     bad = []       # main CRC mismatch and no CRC450 match
     np = []        # No accuraterip data at all
 
-    goodmsg      = 'Accurately ripped'
-    npmsg        = 'Not present in database'
-    badmsg       = '***Definitely not accurately ripped***'
-    maybemsg     = 'Possibly accurately ripped'
-    calc1msg     = 'Calculated CRCv1'
-    calc2msg     = 'Calculated CRCv2'
-    calc450msg   = 'Calculated CRC450'
-    badfmt       = '***Definitely not accurately ripped (%s)***'
-    wofmt        = ' with offset %i'
-    fmt          = '%-20s: %08X'
-    dbentryfmt   = '%-20s: CRC: %08X, Confidence: %3i, CRC450: %08X'
-    totalfmt     = 'total %i submission%s'
-
-    def generate_messages(track, matches, msg, l):
-        msgs = []
-        for offset, confidence in iter(matches.items()):
-            ns = track.num_submissions
-            m = '%s%s (confidence %s%s)' % \
-                (msg, wofmt % offset if offset else '',
-                 '+'.join(str(x) for x in confidence),
-                 '/%i' % ns if ns != confidence else '')
-            msgs.append(m)
-            if offset not in l:
-                l[offset] = []
-            l[offset].append( (confidence, ns) )
-
-        return msgs
-
     for track in tracks:
-        lines = []
-        lines.append(track.path)
-        lines.append(fmt % (calc1msg, track.crc1))
-        lines.append(fmt % (calc2msg, track.crc2))
-
+        lines = [track.path]
+        lines += track.calcsummary(verbose)
         if verbose:
-            lines.append(fmt % (calc450msg, track.crc450))
-            for entry in track.ar_entries:
-                lines.append(dbentryfmt % ('Database entry', entry.crc,
-                                           entry.confidence, entry.crc450))
-
+            lines += track.dbsummary()
         lines.append('-'*len(lines[-1]))
-
-        g = generate_messages(track, track.exact_matches, goodmsg, good)
-        p = generate_messages(track, track.possible_matches, maybemsg, maybe)
-        lines += g
-        lines += p
-
-        ns = track.num_submissions
-        if ns == 0:
-            lines.append(npmsg)
-            np.append(0)
-        elif not g and not p:
-            nsmsg = totalfmt % (ns, 's' if ns != 1 else '')
-            lines.append(badfmt % nsmsg)
-            bad.append(ns)
-
+        lines += track.ripsummary(good, maybe, np, bad)
         summary.append('\n    '.join(lines))
 
     print('\n\n'.join(summary))
@@ -328,19 +343,21 @@ def print_summary(tracks, verbose=False):
         n = len(entry)
         c, ns = max(entry, key=lambda x: sum(x[0]))
         m = (mfmt+' %s%s (confidence %i)') % \
-            (n, total, goodmsg, wofmt % offset if offset else '', sum(c))
+            (n, total, Track.exact_match_msg, Track.with_offset_fmt % offset
+             if offset else '', sum(c))
         print(m)
     for offset in sorted(maybe.keys()):
         entry = maybe[offset]
         n = len(entry)
         c, ns = max(entry, key=lambda x: sum(x[0]))
         m = (mfmt+' %s%s (confidence %i)') % \
-            (n, total, maybemsg, wofmt % offset if offset else '', sum(c))
+            (n, total, Track.possible_match_msg, Track.with_offset_fmt % offset
+             if offset else '', sum(c))
         print(m)
     if bad:
-        print((mfmt+' %s') % (len(bad), total, badmsg))
+        print((mfmt+' %s') % (len(bad), total, Track.not_accurate_msg))
     if np:
-        print((mfmt+' %s') % (len(np), total, npmsg))
+        print((mfmt+' %s') % (len(np), total, Track.not_present_msg))
 
     return len(bad)
 
