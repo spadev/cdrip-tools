@@ -1,12 +1,14 @@
 #!/usr/bin/python
 from __future__ import print_function
-import os, sys, signal
 
-import utils
-
+import os
+import sys
+import signal
 from subprocess import Popen,  PIPE
 from argparse import ArgumentParser
 from os.path import basename, dirname, exists, splitext, join
+
+import utils
 
 BIN = {'metaflac': None,
        'ffprobe': 'avprobe',
@@ -15,7 +17,7 @@ BIN = {'metaflac': None,
        }
 
 PROGNAME = 'fixoffset'
-VERSION = '0.1'
+VERSION = '0.2'
 REQUIRED = ['ffprope', 'sox', 'splitaudio']
 PROCS = []
 TEMPDIRS = []

@@ -1,21 +1,23 @@
 #!/usr/bin/python
 from __future__ import print_function
-import os, re, sys, struct
 
-from os.path import basename, dirname, join
-from subprocess import Popen, PIPE
+import os
+import re
+import sys
+import struct
 from argparse import ArgumentParser
 from io import BytesIO
 from tempfile import TemporaryFile
-
-import utils
-from utils import SubprocessError, NotFromCDError,\
-    AccurateripError, NetworkError
-
+from os.path import basename, dirname, join
+from subprocess import Popen, PIPE
 try:
     from urllib import urlopen
 except ImportError:
     from urllib.request import urlopen
+
+import utils
+from utils import SubprocessError, NotFromCDError,\
+    AccurateripError, NetworkError
 
 BIN = {'metaflac': None,
        'ffprobe' : 'avprobe',

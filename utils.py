@@ -1,11 +1,16 @@
 from __future__ import print_function
-import os, sys, signal, re, time
+
+import os
+import sys
+import signal
+import re
+import time
 
 from os.path import dirname
-from subprocess import Popen, PIPE
 from fnmatch import fnmatch
 from shutil import rmtree
 from argparse import ArgumentTypeError
+from subprocess import Popen, PIPE
 
 class DependencyError(Exception):
     """raised when dependency not found"""
