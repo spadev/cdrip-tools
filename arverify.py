@@ -99,7 +99,7 @@ class Track(object):
                  ('Calculated CRC450', self.crc450)]
         if not verbose:
             pairs = pairs[:-1]
-            for entry in track.ar_entries:
+            for entry in self.ar_entries:
                 lines.append(str(entry))
         return [self._fmt % (x, y) for x, y in pairs]
 
