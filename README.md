@@ -1,3 +1,6 @@
+cdrip-tools
+===========
+
 arverify.py
   Accuraterip verifier that supports multiple lossless formats via
   sox and ffmpeg.
