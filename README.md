@@ -1,32 +1,46 @@
 cdrip-tools
 ===========
+command-line accuraterip verifier and rip offset fixer
 
-arverify.py
-  Accuraterip verifier that supports multiple lossless formats via
-  sox and ffmpeg.
+Files
+-----
+*arverify.py*
 
-  Supports offset detection and both accuraterip v1 and v2.
-
-  Additionally supports specifying additional pregap samples
+* Accuraterip verifier that supports multiple lossless formats via sox and ffmpeg
+* Supports offset detection and both accuraterip v1 and v2
+* Additionally supports specifying additional pregap samples
   as well as data track length in order to get the correct disc id
-  from the accuraterip database.
+  from the accuraterip database
 
-fixoffset.py
-  Companion program to fix the offset of a rip.
+*fixoffset.py*
 
-splitaudio.c
-  small libsdnfile C99 program to split raw audio read from stdin
+* Companion program to fix the offset of a rip
 
-ckcdda.c
-  adapted from https://github.com/jonls/accuraterip-tools)
+*splitaudio.c*
 
-Dependencies:
-  sox ffmpeg libsndfile
-Optional:
-  metaflac libsox-fmt-ffmpeg
+* Small libsdnfile C99 program to split raw audio read from stdin
 
-License:
-  GPLv3
+*ckcdda.c*
 
-Ubuntu 12.04:
-  aptitude install sox ffmpeg libsndfile1-dev flac libsox-fmt-ffmpeg
+* Adapted from https://github.com/jonls/accuraterip-tools
+* Does the actual accuraterip checksum calculations (v1, v2, and offset detection)
+
+Dependencies
+------------
+*mandatory*
+
+* sox
+* ffmpeg
+* libsndfile
+
+*optional*
+
+* metaflac
+* libsox-fmt-ffmpeg
+
+*Ubuntu 12.04*
+```aptitude install sox ffmpeg libsndfile1-dev flac libsox-fmt-ffmpeg```
+
+License
+-------
+GPLv3
