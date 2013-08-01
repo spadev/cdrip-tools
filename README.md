@@ -39,7 +39,14 @@ Dependencies
 * libsox-fmt-ffmpeg
 
 *Ubuntu 12.04*
+
 ```aptitude install sox ffmpeg libsndfile1-dev flac libsox-fmt-ffmpeg```
+
+Notes
+-----
+
+* Mostly tested and designed for Linux, but works on OS X for sure (though getting ffmpeg support for sox is probably a pain, and that's required for handling alac). Will probably work on Windows -- haven't tested at all, but I tried to minimize dependencies...
+* All processing is done via pipes so no temp files
 
 License
 -------
