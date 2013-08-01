@@ -12,7 +12,7 @@ fixoffset.py
   Companion program to fix the offset of a rip.
 
 splitaudio.c
-  small libdnfile C99 program to split raw audio read from stdin
+  small libsdnfile C99 program to split raw audio read from stdin
 
 ckcdda.c
   adapted from https://github.com/jonls/accuraterip-tools)
