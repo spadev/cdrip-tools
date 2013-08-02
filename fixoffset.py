@@ -105,9 +105,8 @@ def print_summary(sources, output_dir):
     s = 's' if len(sources) > 1 else ''
     print('Fixed file%s saved to directory %s' % (s, output_dir))
 
-def main():
+def main(options):
     utils.check_dependencies(BIN, REQUIRED)
-    ns = process_arguments()
     sources = [dict(path=p) for p in ns.paths]
 
     for s in sources:
@@ -116,10 +115,11 @@ def main():
             msg = "%s not from CD (%i samples)\n" % (s['path'],
                                                      s['num_samples'])
             raise utils.NotFromCDError(msg)
-    output_dir = fix_offset(sources, ns.offset, ns.format, ns.verbose)
+    output_dir = fix_offset(sources, options.offset, options.format,
+                            options.verbose)
     print_summary(sources, output_dir)
 
     return 0
 
 if __name__ == '__main__':
-    utils.execute(main, PROCS, tempdirs=TEMPDIRS)
+    utils.execute(main, process_arguments, PROCS, tempdirs=TEMPDIRS)

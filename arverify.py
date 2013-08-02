@@ -142,11 +142,6 @@ def process_arguments():
                         help="length of data track in sectors or mm:ss.ff",
                         default=0,
                         )
-    parser.add_argument("-w", "--wait",
-                        action='store_true',
-                        default=False,
-                        help=("wait for [ENTER] key press before exiting"),
-                        )
     utils.add_common_arguments(parser, VERSION)
 
     return parser.parse_args()
@@ -368,9 +363,8 @@ def print_summary(tracks, verbose=False):
 
     return len(bad)
 
-def main():
+def main(options):
     utils.check_dependencies(BIN, REQUIRED)
-    options = process_arguments()
     tracks = [Track(path) for path in options.paths]
 
     cddb, id1, id2 = get_disc_ids(tracks, options.additional_sectors,
@@ -378,13 +372,7 @@ def main():
     print('Disc ID: %08x-%08x-%08x' % (id1, id2, cddb))
     get_ar_entries(cddb, id1, id2, tracks, options.verbose)
     scan_files(tracks)
-    exitcode = print_summary(tracks, options.verbose)
-    if options.wait:
-        try:
-            raw_input('Press [ENTER] to exit')
-        except:
-            pass
-    return exitcode
+    return print_summary(tracks, options.verbose)
 
 if __name__ == '__main__':
-    utils.execute(main, PROCS)
+    utils.execute(main, process_arguments, PROCS)

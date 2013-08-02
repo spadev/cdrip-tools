@@ -101,6 +101,11 @@ def add_common_arguments(parser, version):
                         )
     parser.add_argument('--version', action='version', version='%%(prog)s %s' %
                         version)
+    parser.add_argument("-w", "--wait",
+                        action='store_true',
+                        default=False,
+                        help=("wait for [ENTER] key press before exiting"),
+                        )
 
 def show_status(msg, *args):
     global STATUS_INDEX
@@ -138,13 +143,15 @@ def get_num_samples(BIN, path):
 def abort(*args):
     raise KilledError
 
-def execute(main, processes, tempfiles=[], tempdirs=[]):
+def execute(main, process_arguments, processes, tempfiles=[], tempdirs=[]):
+    options = None
     try:
         SIGS = [getattr(signal, s, None) for s in
                 "SIGINT SIGTERM SIGHUP".split()]
         for sig in filter(None, SIGS):
             signal.signal(sig, abort)
-        exitcode = main()
+        options = process_arguments()
+        exitcode = main(options)
     except KilledError:
         exitcode = 1
     except (DependencyError, AccurateripError, SubprocessError,
@@ -162,4 +169,11 @@ def execute(main, processes, tempfiles=[], tempdirs=[]):
         for p in processes:
             try: p.kill()
             except OSError: pass
+
+    if options.wait:
+        try:
+            raw_input('Press [ENTER] to exit')
+        except:
+            pass
+
     sys.exit(exitcode)
