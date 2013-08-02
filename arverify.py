@@ -142,6 +142,11 @@ def process_arguments():
                         help="length of data track in sectors or mm:ss.ff",
                         default=0,
                         )
+    parser.add_argument("-w", "--wait",
+                        action='store_true',
+                        default=False,
+                        help=("wait for [ENTER] key press before exiting"),
+                        )
     utils.add_common_arguments(parser, VERSION)
 
     return parser.parse_args()
@@ -280,7 +285,8 @@ def get_ar_entries(cddb, id1, id2, tracks, verbose=False):
     if b'html' in data and b'404' in data:
         data = b''
 
-    return process_binary_ar_entries(BytesIO(bytes(data)), cddb, id1, id2, tracks)
+    return process_binary_ar_entries(BytesIO(bytes(data)), cddb, id1, id2,
+                                     tracks)
 
 def process_binary_ar_entries(fdata, cddb, id1, id2, tracks):
     if not fdata:
@@ -364,15 +370,21 @@ def print_summary(tracks, verbose=False):
 
 def main():
     utils.check_dependencies(BIN, REQUIRED)
-    ns = process_arguments()
-    tracks = [Track(path) for path in ns.paths]
+    options = process_arguments()
+    tracks = [Track(path) for path in options.paths]
 
-    cddb, id1, id2 = get_disc_ids(tracks, ns.additional_sectors,
-                                  ns.data_track_len, ns.verbose)
+    cddb, id1, id2 = get_disc_ids(tracks, options.additional_sectors,
+                                  options.data_track_len, options.verbose)
     print('Disc ID: %08x-%08x-%08x' % (id1, id2, cddb))
-    get_ar_entries(cddb, id1, id2, tracks, ns.verbose)
+    get_ar_entries(cddb, id1, id2, tracks, options.verbose)
     scan_files(tracks)
-    return print_summary(tracks, ns.verbose)
+    exitcode = print_summary(tracks, options.verbose)
+    if options.wait:
+        try:
+            raw_input('Press [ENTER] to exit')
+        except:
+            pass
+    return exitcode
 
 if __name__ == '__main__':
     utils.execute(main, PROCS)
