@@ -40,7 +40,7 @@ Dependencies
 
 *Ubuntu 12.04*
 
-```aptitude install sox ffmpeg libsndfile1-dev flac libsox-fmt-ffmpeg```
+```apt-get install sox ffmpeg libsndfile1-dev flac libsox-fmt-ffmpeg```
 
 Notes
 -----
