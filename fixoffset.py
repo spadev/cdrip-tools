@@ -107,7 +107,7 @@ def print_summary(sources, output_dir):
 
 def main(options):
     utils.check_dependencies(BIN, REQUIRED)
-    sources = [dict(path=p) for p in ns.paths]
+    sources = [dict(path=p) for p in options.paths]
 
     for s in sources:
         s['num_samples'] = utils.get_num_samples(BIN, s['path'])
