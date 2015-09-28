@@ -53,12 +53,13 @@ class Track(object):
     """One track and its associated metadata/information"""
     exact_match_msg = 'Accurately ripped'
     possible_match_msg = 'Possibly accurately ripped'
+    not_accurate_msg = 'NOT accurately ripped'
     not_present_msg = 'Not present in database'
 
     not_accurate_fmt = '***Definitely not accurately ripped (%s)***'
     with_offset_fmt = ' with offset %i'
     _fmt = '%-20s: %08X'
-    total_fmt = 'total %i submissions'
+    total_fmt = 'total %i submission%s'
 
     def __init__(self, path):
         self.path = path
